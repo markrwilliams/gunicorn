@@ -91,6 +91,7 @@ setup(
 
     [gunicorn.workers]
     sync=gunicorn.workers.sync:SyncWorker
+    threaded=gunicorn.workers.threaded:ThreadedWorker
     eventlet=gunicorn.workers.geventlet:EventletWorker
     gevent=gunicorn.workers.ggevent:GeventWorker
     gevent_wsgi=gunicorn.workers.ggevent:GeventPyWSGIWorker
