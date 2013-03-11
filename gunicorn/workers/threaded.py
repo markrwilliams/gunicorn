@@ -40,7 +40,7 @@ class ServingThread(threading.Thread):
         # into this thread subclass.  critical sections are markedre
         # (and hopefully protected by a lock), while the worker
         # methods that remain appeared to contain no critical code.
-        
+
         while True:
             req = None
             try:
@@ -50,7 +50,7 @@ class ServingThread(threading.Thread):
                     client = ssl.wrap_socket(client, server_side=True,
                                              do_handshake_on_connect=False,
                                              **self.worker.cfg.ssl_options)
-                
+
                 parser = http.RequestParser(self.worker.cfg, client)
                 req = six.next(parser)
                 self.handle_request(listener, req, client, addr)
@@ -98,7 +98,7 @@ class ServingThread(threading.Thread):
                     self.worker.log.info("Autorestarting worker "
                                          "after current request.")
                     self.worker.alive = False # CRITICAL
-                    
+
             respiter = self.worker.wsgi(environ, resp.start_response)
             try:
                 if isinstance(respiter, environ['wsgi.file_wrapper']):
@@ -137,18 +137,16 @@ class ThreadedWorker(base.Worker):
         # we fork in the arbiter. Reset it here.
         [s.setblocking(0) for s in self.sockets]
 
-        connection_queue = Queue.Queue()
+        connection_queue = Queue.Queue(maxsize=self.cfg.queue_maxsize)
         thread_pool = []
 
         for _ in xrange(self.worker_connections):
             st = ServingThread(connection_queue, self)
             st.start()
             thread_pool.append(st)
-        
+
         ready = self.sockets
         while self.alive:
-            self.notify()
-
             # Accept a connection. If we get an error telling us
             # that no connection is waiting we fall down to the
             # select which is where we'll wait for a bit for new
@@ -159,13 +157,19 @@ class ThreadedWorker(base.Worker):
                     client, addr = sock.accept()
                     client.setblocking(1)
                     util.close_on_exec(client)
-                    connection_queue.put((sock, client, addr),
-                                         block=True)
 
-                    # Keep processing clients until no one is waiting. This
-                    # prevents the need to select() for every client that we
-                    # process.
-                    continue
+                    retry = True
+                    while retry:
+                        try:
+                            connection_queue.put((sock, client, addr),
+                                                 block=False)
+                        except Queue.Full:
+                            self.log.debug('thread pool Queue full '
+                                           '-- consider raising '
+                                           '--queue-maxsize')
+                            continue
+                        else:
+                            retry = False
 
                 except socket.error as e:
                     if e.args[0] not in (errno.EAGAIN, errno.ECONNABORTED,

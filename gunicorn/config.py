@@ -490,7 +490,7 @@ class WorkerConnections(Setting):
     desc = """\
         The maximum number of simultaneous clients.
 
-        This setting only affects the Eventlet and Gevent worker types.
+        This setting only affects the Threaded, Eventlet and Gevent worker types.
         """
 
 
@@ -547,6 +547,27 @@ class GracefulTimeout(Setting):
         request after got restart signal. If the time is up worker will
         be force killed.
         """
+
+
+class QueueMaxsize(Setting):
+    name = 'queue_maxsize'
+    section = 'Worker Processes'
+    cli = ['--queue-maxsize']
+    meta = 'INT'
+    validator = validate_pos_int
+    type = int
+    default = 60
+    desc = """\
+           Size of the thread pool queue.
+
+           How many connections to enqueue while all the threads are
+           busy serving requests. The lower the setting, the sooner a
+           stuck process will be restarted; the higher, the less
+           overhead incurred by the busy loop that attempts to put an
+           item on the queue.  Use log level `debug' to tune this
+           parameter.
+
+           This setting only affects the Threaded worker"""
 
 
 class Keepalive(Setting):
