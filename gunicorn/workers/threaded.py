@@ -37,19 +37,23 @@ class ServingThread(threading.Thread):
         # parallelize on socket calls, so there is no "critical" code
         #
         # i abstraced out as much as possible from the sync worker
-        # into this thread subclass.  critical sections are marked
+        # into this thread subclass.  critical sections are markedre
         # (and hopefully protected by a lock), while the worker
         # methods that remain appeared to contain no critical code.
         
         while True:
+            req = None
             try:
                 listener, client, addr = self.queue.get(block=True)
+
+                if self.worker.cfg.is_ssl:
+                    client = ssl.wrap_socket(client, server_side=True,
+                                             do_handshake_on_connect=False,
+                                             **self.worker.cfg.ssl_options)
+                
                 parser = http.RequestParser(self.worker.cfg, client)
                 req = six.next(parser)
-                self.handle_request(listener,
-                                    req,
-                                    client,
-                                    addr)
+                self.handle_request(listener, req, client, addr)
             except http.errors.NoMoreData as e:
                 self.worker.log.debug("Ignored premature client "
                                       "disconnection. %s", e)
